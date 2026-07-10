@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Task Bar Hero Browser Prototype</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #111;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header, footer {
+      padding: 8px 12px;
+      background: #222;
+      border-bottom: 1px solid #333;
+    }
+    footer {
+      border-top: 1px solid #333;
+      border-bottom: none;
+    }
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 8px;
+      gap: 8px;
+      overflow: hidden;
+    }
+    .battle-view {
+      flex: 0 0 140px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 8px;
+      background: #181818;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .battle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .hp-bar {
+      flex: 1;
+      height: 12px;
+      background: #333;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-left: 8px;
+    }
+    .hp-fill {
+      height: 100%;
+      background: #4caf50;
+      width: 100%;
+      transition: width 0.1s linear;
+    }
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-top: 4px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 6px;
+      text-align: center;
+      background: #222;
+      border: 1px solid #333;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .tab-btn.active {
+      background: #444;
+      border-color: #888;
+    }
+    .tab-content {
+      flex: 1;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 8px;
+      background: #181818;
+      overflow-y: auto;
+      font-size: 13px;
+    }
+    .section-title {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    .hero-list, .inventory-list, .rune-list, .cube-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .hero-card, .item-card, .rune-node, .cube-card {
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 4px 6px;
+      background: #202020;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    button {
+      cursor: pointer;
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #555;
+      background: #333;
+      color: #eee;
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    .footer-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+    }
+    .footer-left, .footer-right {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .stat-label {
+      color: #aaa;
+    }
+    .stat-value {
+      color: #fff;
+      font-weight: bold;
+    }
+    .chest-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+    .chest-pill {
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid #555;
+      background: #262626;
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>Task Bar Hero - Browser Prototype</div>
+  </header>
+
+  <main>
+    <!-- 戦闘ビュー -->
+    <section class="battle-view">
+      <div class="battle-row">
+        <span>Stage <span id="stage-number">1</span></span>
+        <span>Enemy HP</span>
+        <div class="hp-bar">
+          <div id="enemy-hp-fill" class="hp-fill"></div>
+        </div>
+      </div>
+      <div id="enemy-info" style="font-size:12px;"></div>
+      <hr style="border-color:#333; margin:4px 0;" />
+      <div class="battle-row">
+        <span>Heroes</span>
+      </div>
+      <div id="hero-hp-container"></div>
+      <div style="font-size:11px; color:#aaa; margin-top:4px;">
+        戦闘は完全オート。タブで装備・Rune・Cubeを調整して周回速度を上げる。
+      </div>
+    </section>
+
+    <!-- タブボタン -->
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="party">Party</button>
+      <button class="tab-btn" data-tab="inventory">Inventory</button>
+      <button class="tab-btn" data-tab="rune">Rune Tree</button>
+      <button class="tab-btn" data-tab="cube">Cube</button>
+    </nav>
+
+    <!-- タブコンテンツ -->
+    <section class="tab-content" id="tab-party">
+      <div class="section-title">Party（3ヒーロー自動戦闘）</div>
+      <div class="hero-list" id="hero-list"></div>
+    </section>
+
+    <section class="tab-content" id="tab-inventory" style="display:none;">
+      <div class="section-title">Inventory（装備・素材・宝箱）</div>
+      <div>
+        ゴールド: <span id="gold-amount">0</span> /
+        宝箱: <span id="chest-count">0</span>
+        <button id="open-all-chests-btn">宝箱を全部開封</button>
+      </div>
+      <div class="chest-list" id="chest-list"></div>
+      <hr style="border-color:#333; margin:6px 0;" />
+      <div class="inventory-list" id="inventory-list"></div>
+    </section>
+
+    <section class="tab-content" id="tab-rune" style="display:none;">
+      <div class="section-title">Rune Tree（恒久強化）</div>
+      <div>Runeポイント: <span id="rune-points">0</span></div>
+      <div class="rune-list" id="rune-list"></div>
+    </section>
+
+    <section class="tab-content" id="tab-cube" style="display:none;">
+      <div class="section-title">Cube（合成＆ソケット）</div>
+      <div style="font-size:12px; margin-bottom:4px;">
+        同レア9個を選んで合成 → 上位レア装備を生成（簡易版）。  
+        ソケットは「ATK+%」キューブを装備に付与するイメージ。
+      </div>
+      <div class="cube-list" id="cube-list"></div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-bar">
+      <div class="footer-left">
+        <span class="stat-label">Stage:</span>
+        <span class="stat-value" id="footer-stage">1</span>
+        <span class="stat-label">DPS:</span>
+        <span class="stat-value" id="footer-dps">0</span>
+      </div>
+      <div class="footer-right">
+        <span class="stat-label">Gold:</span>
+        <span class="stat-value" id="footer-gold">0</span>
+        <span class="stat-label">Runes:</span>
+        <span class="stat-value" id="footer-runes">0</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // =========================
+    // データ構造
+    // =========================
+
+    const SAVE_KEY = "tbh_browser_save_v1";
+
+    const rarityOrder = ["common", "rare", "epic", "legendary"];
+    const rarityColor = {
+      common: "#ccc",
+      rare: "#4fc3f7",
+      epic: "#ba68c8",
+      legendary: "#ffb300"
+    };
+
+    let state = {
+      stage: 1,
+      gold: 0,
+      runePoints: 0,
+      heroes: [
+        { id: 1, name: "Warrior", level: 1, atk: 10, attackSpeed: 1.0, critRate: 0.1, hpMax: 100, hp: 100, cooldown: 0, sockets: [] },
+        { id: 2, name: "Archer", level: 1, atk: 8, attackSpeed: 1.5, critRate: 0.2, hpMax: 80, hp: 80, cooldown: 0, sockets: [] },
+        { id: 3, name: "Mage", level: 1, atk: 12, attackSpeed: 0.8, critRate: 0.15, hpMax: 60, hp: 60, cooldown: 0, sockets: [] }
+      ],
+      enemy: null,
+      chests: [],
+      inventory: [],
+      runes: {
+        partySlot2: false,
+        partySlot3: false,
+        autoChest: false,
+        offlineReward: false,
+        atkBoost: 0
+      }
+    };
+
+    // =========================
+    // 敵生成
+    // =========================
+
+    function spawnEnemy() {
+      const baseHp = 100 + state.stage * 20;
+      const baseGold = 5 + state.stage * 2;
+      return {
+        name: "Enemy " + state.stage,
+        hpMax: baseHp,
+        hp: baseHp,
+        goldReward: baseGold,
+        chestChance: Math.min(0.3 + state.stage * 0.01, 0.8)
+      };
+    }
+
+    // =========================
+    // ダメージ計算
+    // =========================
+
+    function calcDamage(hero, enemy) {
+      let atk = hero.atk;
+      atk *= (1 + (state.runes.atkBoost || 0));
+      hero.sockets.forEach(sock => {
+        if (sock.type === "atkPercent") {
+          atk *= (1 + sock.value);
+        }
+      });
+      let dmg = atk;
+      if (Math.random() < hero.critRate) {
+        dmg *= 2;
+      }
+      return Math.floor(dmg);
+    }
+
+    // =========================
+    // 宝箱生成・開封
+    // =========================
+
+    function rollChest(stage) {
+      if (Math.random() > state.enemy.chestChance) return null;
+      const rIndex = Math.min(Math.floor(stage / 10), rarityOrder.length - 1);
+      const rarity = rarityOrder[rIndex];
+      return {
+        id: Date.now() + "_" + Math.random(),
+        rarity,
+        stage
+      };
+    }
+
+    function openChest(chest) {
+      // シンプルに「装備1個＋ゴールド少し」
+      const baseAtk = 5 + chest.stage * 2;
+      const item = {
+        id: "item_" + Date.now() + "_" + Math.random(),
+        name: chest.rarity.toUpperCase() + " Sword",
+        rarity: chest.rarity,
+        type: "weapon",
+        baseStats: { atk: baseAtk },
+        sockets: []
+      };
+      state.inventory.push(item);
+      state.gold += 3 + chest.stage;
+    }
+
+    function openAllChests() {
+      state.chests.forEach(openChest);
+      state.chests = [];
+      renderAll();
+      saveState();
+    }
+
+    // =========================
+    // Rune Tree
+    // =========================
+
+    const runeNodes = [
+      { key: "partySlot2", label: "2人目枠解放", cost: 10, effect: s => { s.runes.partySlot2 = true; } },
+      { key: "partySlot3", label: "3人目枠解放", cost: 30, effect: s => { s.runes.partySlot3 = true; } },
+      { key: "autoChest", label: "宝箱自動開封", cost: 20, effect: s => { s.runes.autoChest = true; } },
+      { key: "offlineReward", label: "オフライン報酬（未使用）", cost: 25, effect: s => { s.runes.offlineReward = true; } },
+      { key: "atkBoost", label: "全体ATK+20%", cost: 40, effect: s => { s.runes.atkBoost = 0.2; } }
+    ];
+
+    function buyRuneNode(node) {
+      if (state.runePoints < node.cost) return;
+      if (state.runes[node.key]) return;
+      state.runePoints -= node.cost;
+      node.effect(state);
+      renderAll();
+      saveState();
+    }
+
+    // =========================
+    // Cube（簡易版）
+    // =========================
+
+    function getItemsByRarity(rarity) {
+      return state.inventory.filter(i => i.rarity === rarity);
+    }
+
+    function combineItems(rarity) {
+      const items = getItemsByRarity(rarity);
+      if (items.length < 9) return;
+      // 9個消費
+      const consumed = items.slice(0, 9);
+      state.inventory = state.inventory.filter(i => !consumed.includes(i));
+      const nextIndex = Math.min(rarityOrder.indexOf(rarity) + 1, rarityOrder.length - 1);
+      const newRarity = rarityOrder[nextIndex];
+      const baseAtk = 20 + state.stage * 3;
+      const newItem = {
+        id: "item_" + Date.now() + "_" + Math.random(),
+        name: newRarity.toUpperCase() + " Cube Sword",
+        rarity: newRarity,
+        type: "weapon",
+        baseStats: { atk: baseAtk },
+        sockets: []
+      };
+      state.inventory.push(newItem);
+      renderAll();
+      saveState();
+    }
+
+    function addAtkCubeToItem(itemId) {
+      const item = state.inventory.find(i => i.id === itemId);
+      if (!item) return;
+      item.sockets.push({ type: "atkPercent", value: 0.1 });
+      renderAll();
+      saveState();
+    }
+
+    // =========================
+    // ゲームループ
+    // =========================
+
+    let lastTick = performance.now();
+
+    function gameLoop(now) {
+      const deltaMs = now - lastTick;
+      lastTick = now;
+
+      if (!state.enemy) {
+        state.enemy = spawnEnemy();
+      }
+
+      // ヒーロー攻撃
+      state.heroes.forEach(hero => {
+        hero.cooldown -= deltaMs;
+        if (hero.cooldown <= 0) {
+          const dmg = calcDamage(hero, state.enemy);
+          state.enemy.hp -= dmg;
+          hero.cooldown = 1000 / hero.attackSpeed;
+        }
+      });
+
+      // 敵撃破
+      if (state.enemy.hp <= 0) {
+        state.gold += state.enemy.goldReward;
+        state.runePoints += 1; // シンプルに1ポイント付与
+        const chest = rollChest(state.stage);
+        if (chest) {
+          state.chests.push(chest);
+          if (state.runes.autoChest) {
+            openChest(chest);
+            state.chests.pop();
+          }
+        }
+        state.stage += 1;
+        state.enemy = spawnEnemy();
+      }
+
+      renderBattle();
+      renderFooter();
+      saveState();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // =========================
+    // 保存・読み込み
+    // =========================
+
+    function saveState() {
+      try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+      } catch (e) {
+        // 失敗時は何もしない（容量制限など）
+      }
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (!raw) return;
+        const loaded = JSON.parse(raw);
+        // ざっくりマージ（構造が変わったときの保険）
+        state = Object.assign(state, loaded);
+        if (!state.enemy) state.enemy = spawnEnemy();
+      } catch (e) {
+        // 壊れていたら無視
+      }
+    }
+
+    // =========================
+    // 描画
+    // =========================
+
+    function renderBattle() {
+      const enemyFill = document.getElementById("enemy-hp-fill");
+      const enemyInfo = document.getElementById("enemy-info");
+      const stageNumber = document.getElementById("stage-number");
+      const heroHpContainer = document.getElementById("hero-hp-container");
+
+      stageNumber.textContent = state.stage;
+      const ratio = Math.max(state.enemy.hp, 0) / state.enemy.hpMax;
+      enemyFill.style.width = (ratio * 100) + "%";
+      enemyInfo.textContent = `${state.enemy.name} HP: ${Math.max(state.enemy.hp, 0)} / ${state.enemy.hpMax}  Gold: +${state.enemy.goldReward}`;
+
+      heroHpContainer.innerHTML = "";
+      state.heroes.forEach(hero => {
+        const row = document.createElement("div");
+        row.className = "battle-row";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = hero.name;
+        const hpBar = document.createElement("div");
+        hpBar.className = "hp-bar";
+        const hpFill = document.createElement("div");
+        hpFill.className = "hp-fill";
+        const hr = hero.hpMax > 0 ? hero.hp / hero.hpMax : 0;
+        hpFill.style.width = (hr * 100) + "%";
+        hpBar.appendChild(hpFill);
+        row.appendChild(nameSpan);
+        row.appendChild(hpBar);
+        heroHpContainer.appendChild(row);
+      });
+    }
+
+    function renderParty() {
+      const heroList = document.getElementById("hero-list");
+      heroList.innerHTML = "";
+      state.heroes.forEach(hero => {
+        const card = document.createElement("div");
+        card.className = "hero-card";
+        const left = document.createElement("div");
+        left.innerHTML = `
+          <div>${hero.name} Lv.${hero.level}</div>
+          <div style="font-size:11px;">ATK: ${hero.atk} / ASPD: ${hero.attackSpeed.toFixed(2)} / Crit: ${(hero.critRate*100).toFixed(0)}%</div>
+        `;
+        const right = document.createElement("div");
+        const btn = document.createElement("button");
+        btn.textContent = "LvUP (10G)";
+        btn.disabled = state.gold < 10;
+        btn.onclick = () => {
+          if (state.gold < 10) return;
+          state.gold -= 10;
+          hero.level += 1;
+          hero.atk += 3;
+          hero.hpMax += 10;
+          hero.hp = hero.hpMax;
+          renderAll();
+          saveState();
+        };
+        right.appendChild(btn);
+        card.appendChild(left);
+        card.appendChild(right);
+        heroList.appendChild(card);
+      });
+    }
+
+    function renderInventory() {
+      const goldAmount = document.getElementById("gold-amount");
+      const chestCount = document.getElementById("chest-count");
+      const chestList = document.getElementById("chest-list");
+      const inventoryList = document.getElementById("inventory-list");
+
+      goldAmount.textContent = state.gold;
+      chestCount.textContent = state.chests.length;
+
+      chestList.innerHTML = "";
+      state.chests.forEach(chest => {
+        const pill = document.createElement("div");
+        pill.className = "chest-pill";
+        pill.style.borderColor = rarityColor[chest.rarity];
+        pill.innerHTML = `<span>${chest.rarity}</span><span>Lv${chest.stage}</span>`;
+        chestList.appendChild(pill);
+      });
+
+      inventoryList.innerHTML = "";
+      state.inventory.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "item-card";
+        const left = document.createElement("div");
+        left.innerHTML = `
+          <div style="color:${rarityColor[item.rarity]};">${item.name}</div>
+          <div style="font-size:11px;">ATK: ${item.baseStats.atk}</div>
+        `;
+        const right = document.createElement("div");
+        const equipBtn = document.createElement("button");
+        equipBtn.textContent = "ATK+Cube";
+        equipBtn.onclick = () => addAtkCubeToItem(item.id);
+        right.appendChild(equipBtn);
+        card.appendChild(left);
+        card.appendChild(right);
+        inventoryList.appendChild(card);
+      });
+    }
+
+    function renderRuneTree() {
+      const runePointsSpan = document.getElementById("rune-points");
+      const runeList = document.getElementById("rune-list");
+      runePointsSpan.textContent = state.runePoints;
+      runeList.innerHTML = "";
+
+      runeNodes.forEach(node => {
+        const card = document.createElement("div");
+        card.className = "rune-node";
+        const left = document.createElement("div");
+        left.innerHTML = `
+          <div>${node.label}</div>
+          <div style="font-size:11px;">Cost: ${node.cost} RP</div>
+        `;
+        const right = document.createElement("div");
+        const btn = document.createElement("button");
+        btn.textContent = state.runes[node.key] ? "取得済み" : "取得";
+        btn.disabled = state.runes[node.key] || state.runePoints < node.cost;
+        btn.onclick = () => buyRuneNode(node);
+        right.appendChild(btn);
+        card.appendChild(left);
+        card.appendChild(right);
+        runeList.appendChild(card);
+      });
+    }
+
+    function renderCube() {
+      const cubeList = document.getElementById("cube-list");
+      cubeList.innerHTML = "";
+
+      rarityOrder.forEach(rarity => {
+        const items = getItemsByRarity(rarity);
+        const card = document.createElement("div");
+        card.className = "cube-card";
+        const left = document.createElement("div");
+        left.innerHTML = `
+          <div style="color:${rarityColor[rarity]};">${rarity.toUpperCase()}</div>
+          <div style="font-size:11px;">所持: ${items.length} / 合成には9個必要</div>
+        `;
+        const right = document.createElement("div");
+        const btn = document.createElement("button");
+        btn.textContent = "9個合成";
+        btn.disabled = items.length < 9;
+        btn.onclick = () => combineItems(rarity);
+        right.appendChild(btn);
+        card.appendChild(left);
+        card.appendChild(right);
+        cubeList.appendChild(card);
+      });
+    }
+
+    function renderFooter() {
+      const footerStage = document.getElementById("footer-stage");
+      const footerDps = document.getElementById("footer-dps");
+      const footerGold = document.getElementById("footer-gold");
+      const footerRunes = document.getElementById("footer-runes");
+
+      footerStage.textContent = state.stage;
+      const dps = state.heroes.reduce((sum, h) => sum + h.atk * h.attackSpeed, 0);
+      footerDps.textContent = dps.toFixed(1);
+      footerGold.textContent = state.gold;
+      footerRunes.textContent = state.runePoints;
+    }
+
+    function renderAll() {
+      renderBattle();
+      renderParty();
+      renderInventory();
+      renderRuneTree();
+      renderCube();
+      renderFooter();
+    }
+
+    // =========================
+    // タブ切り替え
+    // =========================
+
+    function setupTabs() {
+      const buttons = document.querySelectorAll(".tab-btn");
+      const contents = {
+        party: document.getElementById("tab-party"),
+        inventory: document.getElementById("tab-inventory"),
+        rune: document.getElementById("tab-rune"),
+        cube: document.getElementById("tab-cube")
+      };
+      buttons.forEach(btn => {
+        btn.addEventListener("click", () => {
+          buttons.forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          const tab = btn.dataset.tab;
+          Object.keys(contents).forEach(key => {
+            contents[key].style.display = key === tab ? "block" : "none";
+          });
+        });
+      });
+    }
+
+    // =========================
+    // イベントセットアップ
+    // =========================
+
+    function setupEvents() {
+      document.getElementById("open-all-chests-btn").addEventListener("click", () => {
+        openAllChests();
+      });
+    }
+
+    // =========================
+    // 初期化
+    // =========================
+
+    function init() {
+      loadState();
+      setupTabs();
+      setupEvents();
+      if (!state.enemy) state.enemy = spawnEnemy();
+      renderAll();
+      lastTick = performance.now();
+      requestAnimationFrame(gameLoop);
+    }
+
+    init();
+  </script>
+</body>
+</html>
